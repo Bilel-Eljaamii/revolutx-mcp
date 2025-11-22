@@ -23,9 +23,14 @@ The following tools are available:
 
 ## Prompts
 
-*   **`analyze-market`**: A prompt that guides the AI to analyze market conditions for a specific symbol using available tools.
-*   **`create-ladder-strategy`**: Generate a ladder trading strategy (multiple orders at different price levels).
+*   **`analyze-market`**: Analyze market conditions for a specific trading pair using order book and recent trades.
+*   **`create-ladder-strategy`**: Generate a ladder trading strategy with multiple orders at different price levels.
 *   **`portfolio-summary`**: Analyze current portfolio value based on balances and market prices.
+*   **`risk-assessment`**: Perform comprehensive portfolio risk analysis including concentration, liquidity, and exposure.
+*   **`order-management`**: Review and manage active orders with recommendations for cancellation or adjustment.
+*   **`market-comparison`**: Compare market conditions across multiple trading pairs to find best trading opportunities.
+*   **`price-alert-setup`**: Set up price monitoring strategy for a trading pair with target price alerts.
+
 
 
 ## Prerequisites
