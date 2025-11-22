@@ -231,4 +231,148 @@ describe("RevolutX MCP Tools", () => {
         expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders/order-123`, expect.any(Object));
         expect(JSON.parse(result.content[0].text)).toEqual(mockData);
     });
+
+    // Error handling tests
+    describe("Error Handling", () => {
+        test("get_balances handles API error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("API Error"));
+
+            const result = await handleToolCall("get_balances", {});
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Error");
+        });
+
+        test("get_currencies handles network error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Network timeout"));
+
+            const result = await handleToolCall("get_currencies", {});
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Network timeout");
+        });
+
+        test("get_pairs handles 500 error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Internal server error"));
+
+            const result = await handleToolCall("get_pairs", {});
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Error");
+        });
+
+        test("get_active_orders handles error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Unauthorized"));
+
+            const result = await handleToolCall("get_active_orders", {});
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Unauthorized");
+        });
+
+        test("get_last_trades handles error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Service unavailable"));
+
+            const result = await handleToolCall("get_last_trades", {});
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Service unavailable");
+        });
+
+        test("get_order_book handles error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Not found"));
+
+            const result = await handleToolCall("get_order_book", { symbol: "INVALID-PAIR" });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Not found");
+        });
+
+        test("place_order handles error", async () => {
+            mockedAxios.post.mockRejectedValue(new Error("Insufficient balance"));
+
+            const result = await handleToolCall("place_order", {
+                symbol: "BTC-USD",
+                side: "buy",
+                type: "market",
+                quantity: "100"
+            });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Insufficient balance");
+        });
+
+        test("cancel_order handles error", async () => {
+            mockedAxios.delete.mockRejectedValue(new Error("Order not found"));
+
+            const result = await handleToolCall("cancel_order", { order_id: "invalid-id" });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Order not found");
+        });
+
+        test("get_order handles error", async () => {
+            mockedAxios.get.mockRejectedValue(new Error("Order expired"));
+
+            const result = await handleToolCall("get_order", { order_id: "expired-123" });
+
+            expect(result.isError).toBe(true);
+            expect(result.content[0].text).toContain("Order expired");
+        });
+    });
+
+    // Edge case tests
+    describe("Edge Cases", () => {
+        test("cancel_order with 200 response (non-204)", async () => {
+            const mockData = { message: "Order cancelled", id: "order-123" };
+            mockedAxios.delete.mockResolvedValue({ status: 200, data: mockData });
+
+            const result = await handleToolCall("cancel_order", { order_id: "order-123" });
+
+            expect(result.content[0].text).toContain("Order cancelled");
+            expect(result.content[0].text).toContain("order-123");
+        });
+
+        test("get_active_orders with cursor pagination", async () => {
+            const mockData = { data: [], metadata: { nextCursor: "abc123" } };
+            mockedAxios.get.mockResolvedValue({ data: mockData });
+
+            const result = await handleToolCall("get_active_orders", { cursor: "prev123", limit: 25 });
+
+            expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, expect.objectContaining({
+                params: { cursor: "prev123", limit: 25 }
+            }));
+            expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+        });
+
+        test("get_order_book with complex symbol", async () => {
+            const mockData = { data: { bids: [], asks: [] } };
+            mockedAxios.get.mockResolvedValue({ data: mockData });
+
+            const result = await handleToolCall("get_order_book", { symbol: "ETH-USDT" });
+
+            expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/public/order-book/ETH-USDT`, expect.any(Object));
+        });
+
+        test("place_order with all parameters", async () => {
+            const mockData = { id: "order-456", status: "pending" };
+            mockedAxios.post.mockResolvedValue({ data: mockData });
+
+            const args = {
+                symbol: "ETH-USD",
+                side: "sell",
+                type: "limit",
+                quantity: "5.0",
+                price: "3000"
+            };
+            const result = await handleToolCall("place_order", args);
+
+            expect(mockedAxios.post).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, args, expect.any(Object));
+            expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+        });
+    });
+
+    test("unknown tool throws error", async () => {
+        await expect(handleToolCall("unknown_tool", {})).rejects.toThrow("Tool not found: unknown_tool");
+    });
 });
