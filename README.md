@@ -32,6 +32,18 @@ The following tools are available:
 *   **`price-alert-setup`**: Set up price monitoring strategy for a trading pair with target price alerts.
 
 
+## Documentation
+
+For comprehensive documentation, see the [docs](docs/) folder:
+
+- **[Getting Started](docs/getting-started.md)** - Installation and setup guide
+- **[Tools Reference](docs/tools.md)** - Complete API reference for all tools
+- **[Resources Reference](docs/resources.md)** - Available resources documentation
+- **[Prompts Guide](docs/prompts.md)** - Workflow prompts and examples
+- **[Architecture](docs/architecture.md)** - System architecture and design
+- **[Examples](docs/examples.md)** - Practical usage examples
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+
 
 ## Prerequisites
 
@@ -111,7 +123,7 @@ To use this server with an MCP client (like Claude Desktop), add the following c
   "mcpServers": {
     "revolutx": {
       "command": "node",
-      "args": ["/path/to/revolutx-mcp/src/index.js"],
+      "args": ["/path/to/revolutx-mcp/dist/index.js"],
       "env": {
         "REVOLUTX_API_KEY": "your_api_key_here"
       }
