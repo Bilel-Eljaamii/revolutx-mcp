@@ -43,23 +43,18 @@ export async function handleGetLastTrades() {
         headers: {
           Accept: "application/json",
         },
-        validateStatus: (status) => true,
-      }
+      },
     );
 
-    if (response.status === 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(response.data, null, 2),
-          },
-        ],
-      };
-    }
-
-    return handleAxiosError({ response }, "fetching last trades");
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, "fetching last trades");
   }
 }

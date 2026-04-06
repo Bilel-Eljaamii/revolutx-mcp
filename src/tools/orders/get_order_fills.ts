@@ -7,36 +7,36 @@ import {
   checkApiKey,
 } from "../../utils.js";
 
-export const getOrderBookSnapshotTool: Tool = {
-  name: "get_order_book_snapshot",
+export const getOrderFillsTool: Tool = {
+  name: "get_order_fills",
   description:
-    "Retrieve the current order book snapshot (bids and asks) for a specific trading pair.",
+    "Retrieves the fills (trades) associated with a specific order belonging to the client.",
   inputSchema: {
     type: "object",
     properties: {
-      symbol: {
+      order_id: {
         type: "string",
-        description: "The trading pair symbol (e.g., BTC-USD)",
+        description: "Unique identifier (UUID) of the venue order",
       },
     },
-    required: ["symbol"],
+    required: ["order_id"],
   },
 };
 
-interface GetOrderBookSnapshotArgs {
-  symbol: string;
+interface GetOrderFillsArgs {
+  order_id: string;
 }
 
-export async function handleGetOrderBookSnapshot(args: unknown) {
+export async function handleGetOrderFills(args: unknown) {
   const apiKeyError = checkApiKey();
   if (apiKeyError) return apiKeyError;
 
-  const { symbol } = args as GetOrderBookSnapshotArgs;
+  const { order_id } = args as GetOrderFillsArgs;
 
   try {
-    const path = `/api/1.0/market-data/order-book/${symbol}`;
+    const path = `/api/1.0/orders/fills/${order_id}`;
     const response = await axios.get(
-      `${REVOLUTX_API_URL}/market-data/order-book/${symbol}`,
+      `${REVOLUTX_API_URL}/orders/fills/${order_id}`,
       {
         headers: {
           Accept: "application/json",
@@ -54,9 +54,6 @@ export async function handleGetOrderBookSnapshot(args: unknown) {
       ],
     };
   } catch (error: unknown) {
-    return handleAxiosError(
-      error,
-      `fetching order book snapshot for ${symbol}`,
-    );
+    return handleAxiosError(error, `fetching fills for order ${order_id}`);
   }
 }

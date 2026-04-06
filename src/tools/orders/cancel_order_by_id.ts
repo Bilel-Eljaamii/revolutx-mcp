@@ -2,9 +2,9 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import {
   REVOLUTX_API_URL,
-  getApiKey,
   handleAxiosError,
   checkApiKey,
+  getAuthHeaders,
 } from "../../utils.js";
 
 export const cancelOrderTool: Tool = {
@@ -22,38 +22,38 @@ export const cancelOrderTool: Tool = {
   },
 };
 
-export async function handleCancelOrder(args: any) {
+interface CancelOrderArgs {
+  order_id: string;
+}
+
+export async function handleCancelOrder(args: unknown) {
   const apiKeyError = checkApiKey();
   if (apiKeyError) return apiKeyError;
 
-  const { order_id } = args;
+  const { order_id } = args as CancelOrderArgs;
 
   try {
     // Note: RevolutX API typically uses DELETE /orders/{id}
+    const path = `/api/1.0/orders/${order_id}`;
     const response = await axios.delete(
       `${REVOLUTX_API_URL}/orders/${order_id}`,
       {
         headers: {
           Accept: "application/json",
-          "X-API-KEY": getApiKey(),
+          ...getAuthHeaders("DELETE", path),
         },
-        validateStatus: (status) => true,
-      }
+      },
     );
 
-    if (response.status === 204) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Order cancelled successfully.",
-          },
-        ],
-      };
-    }
-
-    return handleAxiosError({ response }, `canceling order ${order_id}`);
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Order cancelled successfully.",
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, `canceling order ${order_id}`);
   }
 }

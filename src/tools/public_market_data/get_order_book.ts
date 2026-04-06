@@ -44,8 +44,12 @@ export const getOrderBookTool: Tool = {
   },
 };
 
-export async function handleGetOrderBook(args: any) {
-  const symbol = args?.symbol as string;
+interface GetOrderBookArgs {
+  symbol: string;
+}
+
+export async function handleGetOrderBook(args: unknown) {
+  const { symbol } = (args as GetOrderBookArgs) || {};
   if (!symbol) {
     throw new Error("Symbol is required");
   }
@@ -57,23 +61,18 @@ export async function handleGetOrderBook(args: any) {
         headers: {
           Accept: "application/json",
         },
-        validateStatus: (status) => true,
-      }
+      },
     );
 
-    if (response.status === 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(response.data, null, 2),
-          },
-        ],
-      };
-    }
-
-    return handleAxiosError({ response }, `fetching order book for ${symbol}`);
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, `fetching order book for ${symbol}`);
   }
 }

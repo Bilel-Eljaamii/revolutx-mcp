@@ -1,25 +1,19 @@
 import axios from "axios";
 import dotenv from "dotenv";
+import { 
+  REVOLUTX_API_URL, 
+  getAuthHeaders 
+} from "../src/utils.js";
 
 dotenv.config();
 
-const API_KEY = process.env.REVOLUTX_API_KEY;
-const REVOLUTX_API_URL = "https://revx.revolut.com/api/1.0";
-
-if (!getApiKey) {
-  console.error(
-    "REVOLUTX_API_KEY environment variable is required for this test"
-  );
-  process.exit(1);
-}
-
 async function testActiveOrders() {
+  const path = "/api/1.0/orders";
   try {
-    console.log(`Testing connection to ${REVOLUTX_API_URL}/orders...`);
     const response = await axios.get(`${REVOLUTX_API_URL}/orders`, {
       headers: {
         Accept: "application/json",
-        "X-API-KEY": getApiKey(),
+        ...getAuthHeaders("GET", path),
       },
     });
 

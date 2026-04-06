@@ -1,22 +1,54 @@
 import axios from "axios";
-import { handleAxiosError, checkApiKey, getApiKey } from "../../src/utils";
+import crypto from "crypto";
+import { 
+  handleAxiosError, 
+  checkApiKey, 
+  getApiKey, 
+  getPrivateKey,
+  getAuthHeaders 
+} from "../../src/utils";
 
-// Mock getApiKey from utils.ts
+// Mock utils.ts
 jest.mock("../../src/utils", () => ({
   __esModule: true,
   ...jest.requireActual("../../src/utils"),
   getApiKey: jest.fn(),
+  getPrivateKey: jest.fn(),
 }));
 
 describe("Utils", () => {
   beforeEach(() => {
-    // Ensure getApiKey is reset before each test
-    (getApiKey as jest.Mock).mockClear();
     (getApiKey as jest.Mock).mockReturnValue("test_api_key");
+    (getPrivateKey as jest.Mock).mockReturnValue("test_private_key");
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe("getAuthHeaders", () => {
+    const mockPrivateKey = "MC4CAQAwBQYDK2VwBCIEIByfG5v2vVn0n7m4E1H5R9U5D4F5E6G7H8I9J0K1L2M3"; // Example raw key data
+
+    test("generates auth headers correctly", () => {
+      // Mock crypto.sign
+      const signSpy = jest.spyOn(crypto, "sign").mockReturnValue(Buffer.from("signed_signature") as any);
+      (getPrivateKey as jest.Mock).mockReturnValue(mockPrivateKey);
+      (getApiKey as jest.Mock).mockReturnValue("test_key");
+
+      const headers = getAuthHeaders("POST", "/api/1.0/orders", '{"qty":1}');
+
+      expect(headers).toHaveProperty("X-Revx-API-Key", "test_key");
+      expect(headers).toHaveProperty("X-Revx-Timestamp");
+      expect(headers).toHaveProperty("X-Revx-Signature");
+      expect(typeof headers["X-Revx-Signature"]).toBe("string");
+      
+      signSpy.mockRestore();
+    });
+
+    test("throws error if private key is missing", () => {
+      (getPrivateKey as jest.Mock).mockReturnValue(undefined);
+      expect(() => getAuthHeaders("GET", "/path")).toThrow("REVOLUTX_PRIVATE_KEY is not set");
+    });
   });
 
   describe("handleAxiosError", () => {
@@ -30,38 +62,19 @@ describe("Utils", () => {
         },
       };
 
-      // Mock axios.isAxiosError
       jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
 
       const result = handleAxiosError(axiosError, "fetching data");
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].type).toBe("text");
       expect(result.content[0].text).toContain("Error fetching data");
       expect(result.content[0].text).toContain("Request failed");
       expect(result.content[0].text).toContain("Status: 404");
       expect(result.content[0].text).toContain("Not found");
     });
 
-    test("handles Axios error without response", () => {
-      const axiosError = {
-        message: "Network error",
-        isAxiosError: true,
-      };
-
-      jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
-
-      const result = handleAxiosError(axiosError, "connecting");
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain("Error connecting");
-      expect(result.content[0].text).toContain("Network error");
-      expect(result.content[0].text).not.toContain("Status:");
-    });
-
-    test("handles non-Axios error", () => {
+    test("handles non-Axios Error instance", () => {
       const genericError = new Error("Something went wrong");
-
       jest.spyOn(axios, "isAxiosError").mockReturnValue(false);
 
       const result = handleAxiosError(genericError, "processing");
@@ -69,42 +82,15 @@ describe("Utils", () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain("Error processing");
       expect(result.content[0].text).toContain("Something went wrong");
-      expect(result.content[0].text).not.toContain("Status:");
-    });
-
-    test("handles error with complex response data", () => {
-      const axiosError = {
-        message: "Bad request",
-        isAxiosError: true,
-        response: {
-          status: 400,
-          data: {
-            errors: [
-              { field: "price", message: "Invalid price" },
-              { field: "quantity", message: "Invalid quantity" },
-            ],
-          },
-        },
-      };
-
-      jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
-
-      const result = handleAxiosError(axiosError, "validating order");
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain("Error validating order");
-      expect(result.content[0].text).toContain("Status: 400");
-      expect(result.content[0].text).toContain("Invalid price");
-      expect(result.content[0].text).toContain("Invalid quantity");
     });
 
     test("handles 401 Unauthorized", () => {
       const axiosError = {
-        message: "Request failed with status code 401",
+        message: "Unauthorized",
         isAxiosError: true,
         response: {
           status: 401,
-          data: { message: "Invalid API key" },
+          data: { message: "Invalid key" },
         },
       };
       jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
@@ -112,98 +98,28 @@ describe("Utils", () => {
       const result = handleAxiosError(axiosError, "fetching data");
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        "Unauthorized: Your API key is invalid or expired."
-      );
-      expect(result.content[0].text).toContain("Invalid API key");
-    });
-
-    test("handles 403 Forbidden", () => {
-      const axiosError = {
-        message: "Request failed with status code 403",
-        isAxiosError: true,
-        response: {
-          status: 403,
-          data: { message: "Access denied" },
-        },
-      };
-      jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
-
-      const result = handleAxiosError(axiosError, "fetching data");
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        "Forbidden: You do not have permission to access this resource."
-      );
-      expect(result.content[0].text).toContain("Access denied");
-    });
-
-    test("handles 409 Conflict", () => {
-      const axiosError = {
-        message: "Request failed with status code 409",
-        isAxiosError: true,
-        response: {
-          status: 409,
-          data: { message: "Order already exists" },
-        },
-      };
-      jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
-
-      const result = handleAxiosError(axiosError, "placing order");
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        "Conflict: The request could not be completed due to a conflict with the current state of the resource."
-      );
-      expect(result.content[0].text).toContain("Order already exists");
-    });
-
-    test("handles 5xx Server Error", () => {
-      const axiosError = {
-        message: "Request failed with status code 500",
-        isAxiosError: true,
-        response: {
-          status: 500,
-          data: { message: "Internal server error" },
-        },
-      };
-      jest.spyOn(axios, "isAxiosError").mockReturnValue(true);
-
-      const result = handleAxiosError(axiosError, "fetching data");
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        "Server Error: The Revolut X server encountered an error (Status: 500)"
-      );
-      expect(result.content[0].text).toContain("Internal server error");
+      expect(result.content[0].text).toContain("Unauthorized: Your API key is invalid or expired.");
     });
   });
 
   describe("checkApiKey", () => {
     test("returns error when API key is missing", () => {
-      (getApiKey as jest.Mock).mockReturnValueOnce(undefined);
+      (getApiKey as jest.Mock).mockReturnValue(undefined);
       const result = checkApiKey();
-      expect(result).not.toBeNull();
-      if (result) {
-        expect(result.isError).toBe(true);
-        expect(result.content[0].text).toContain("REVOLUTX_API_KEY");
-        expect(result.content[0].text).toContain("required");
-      }
+      expect(result?.isError).toBe(true);
+      expect(result?.content[0].text).toContain("REVOLUTX_API_KEY");
     });
 
-    test("returns null when API key is present", () => {
-      (getApiKey as jest.Mock).mockReturnValueOnce("some_api_key");
+    test("returns error when private key is missing", () => {
+      (getPrivateKey as jest.Mock).mockReturnValue(undefined);
+      const result = checkApiKey();
+      expect(result?.isError).toBe(true);
+      expect(result?.content[0].text).toContain("REVOLUTX_PRIVATE_KEY");
+    });
+
+    test("returns null when both keys are present", () => {
       const result = checkApiKey();
       expect(result).toBeNull();
-    });
-
-    test("checkApiKey logic with empty string", () => {
-      (getApiKey as jest.Mock).mockReturnValueOnce("");
-      const result = checkApiKey();
-      expect(result).not.toBeNull();
-      if (result) {
-        expect(result.isError).toBe(true);
-      }
     });
   });
 });

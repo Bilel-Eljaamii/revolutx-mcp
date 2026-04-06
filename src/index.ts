@@ -28,6 +28,14 @@ import {
   handleGetActiveOrders,
 } from "./tools/orders/get_active_orders.js";
 import {
+  getHistoricalOrdersTool,
+  handleGetHistoricalOrders,
+} from "./tools/orders/get_historical_orders.js";
+import {
+  getOrderFillsTool,
+  handleGetOrderFills,
+} from "./tools/orders/get_order_fills.js";
+import {
   getLastTradesTool,
   handleGetLastTrades,
 } from "./tools/public_market_data/get_last_trades.js";
@@ -44,9 +52,33 @@ import {
   handleCancelOrder,
 } from "./tools/orders/cancel_order_by_id.js";
 import {
+  cancelAllOrdersTool,
+  handleCancelAllOrders,
+} from "./tools/orders/cancel_all_orders.js";
+import {
   getOrderTool,
   handleGetOrder,
 } from "./tools/orders/get_order_by_id.js";
+import {
+  getAllTradesTool,
+  handleGetAllTrades,
+} from "./tools/trades/get_all_trades.js";
+import {
+  getPrivateTradesTool,
+  handleGetPrivateTrades,
+} from "./tools/trades/get_private_trades.js";
+import {
+  getOrderBookSnapshotTool,
+  handleGetOrderBookSnapshot,
+} from "./tools/market_data/get_order_book_snapshot.js";
+import {
+  getCandlesTool,
+  handleGetCandles,
+} from "./tools/market_data/get_candles.js";
+import {
+  getTickersTool,
+  handleGetTickers,
+} from "./tools/market_data/get_tickers.js";
 
 // Import resources and prompts
 import { resources, handleReadResource } from "./resources/index.js";
@@ -65,26 +97,34 @@ const server = new Server(
       resources: {},
       prompts: {},
     },
-  }
+  },
 );
 
-server.setRequestHandler(ListToolsRequestSchema, async () => {
+server.setRequestHandler(ListToolsRequestSchema, () => {
   return {
     tools: [
       getBalancesTool,
       getCurrenciesTool,
       getPairsTool,
       getActiveOrdersTool,
+      getHistoricalOrdersTool,
+      getOrderFillsTool,
       getLastTradesTool,
       getOrderBookTool,
       placeOrderTool,
       cancelOrderTool,
+      cancelAllOrdersTool,
       getOrderTool,
+      getAllTradesTool,
+      getPrivateTradesTool,
+      getOrderBookSnapshotTool,
+      getCandlesTool,
+      getTickersTool,
     ],
   };
 });
 
-server.setRequestHandler(ListResourcesRequestSchema, async () => {
+server.setRequestHandler(ListResourcesRequestSchema, () => {
   return {
     resources: resources,
   };
@@ -94,7 +134,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   return handleReadResource(request.params.uri);
 });
 
-server.setRequestHandler(ListPromptsRequestSchema, async () => {
+server.setRequestHandler(ListPromptsRequestSchema, () => {
   return {
     prompts: prompts,
   };
@@ -114,6 +154,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return handleGetPairs();
     case "get_active_orders":
       return handleGetActiveOrders(request.params.arguments);
+    case "get_historical_orders":
+      return handleGetHistoricalOrders(request.params.arguments);
     case "get_last_trades":
       return handleGetLastTrades();
     case "get_order_book":
@@ -122,8 +164,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       return handlePlaceOrder(request.params.arguments);
     case "cancel_order":
       return handleCancelOrder(request.params.arguments);
+    case "cancel_all_orders":
+      return handleCancelAllOrders();
     case "get_order":
       return handleGetOrder(request.params.arguments);
+    case "get_order_fills":
+      return handleGetOrderFills(request.params.arguments);
+    case "get_all_trades":
+      return handleGetAllTrades(request.params.arguments);
+    case "get_private_trades":
+      return handleGetPrivateTrades(request.params.arguments);
+    case "get_order_book_snapshot":
+      return handleGetOrderBookSnapshot(request.params.arguments);
+    case "get_candles":
+      return handleGetCandles(request.params.arguments);
+    case "get_tickers":
+      return handleGetTickers(request.params.arguments);
     default:
       throw new Error(`Tool not found: ${request.params.name}`);
   }
@@ -135,7 +191,7 @@ async function runServer() {
   console.error("RevolutX MCP Server running on stdio");
 }
 
-runServer().catch((error) => {
+runServer().catch((error: unknown) => {
   console.error("Fatal error running server:", error);
   process.exit(1);
 });

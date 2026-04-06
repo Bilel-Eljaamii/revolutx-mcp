@@ -2,15 +2,14 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import {
   REVOLUTX_API_URL,
-  getApiKey,
+  getAuthHeaders,
   handleAxiosError,
   checkApiKey,
 } from "../../utils.js";
 
 export const getCurrenciesTool: Tool = {
   name: "get_currencies",
-  description:
-    "Get configuration for all currencies used on the exchange. Requires REVOLUTX_API_KEY.",
+  description: "Get configuration for all currencies used on the exchange.",
   inputSchema: {
     type: "object",
     properties: {},
@@ -27,25 +26,20 @@ export async function handleGetCurrencies() {
       {
         headers: {
           Accept: "application/json",
-          "X-API-KEY": getApiKey(),
+          ...getAuthHeaders("GET", "/api/1.0/configuration/currencies"),
         },
-        validateStatus: (status) => true,
-      }
+      },
     );
 
-    if (response.status === 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(response.data, null, 2),
-          },
-        ],
-      };
-    }
-
-    return handleAxiosError({ response }, "fetching currencies");
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, "fetching currencies");
   }
 }

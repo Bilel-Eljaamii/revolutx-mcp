@@ -1,10 +1,11 @@
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
+import crypto from "crypto";
 import {
   REVOLUTX_API_URL,
-  getApiKey,
   handleAxiosError,
   checkApiKey,
+  getAuthHeaders,
 } from "../../utils.js";
 
 export const placeOrderTool: Tool = {
@@ -41,11 +42,19 @@ export const placeOrderTool: Tool = {
   },
 };
 
-export async function handlePlaceOrder(args: any) {
+interface PlaceOrderArgs {
+  symbol: string;
+  side: "buy" | "sell";
+  type: "market" | "limit";
+  quantity: string;
+  price?: string;
+}
+
+export async function handlePlaceOrder(args: unknown) {
   const apiKeyError = checkApiKey();
   if (apiKeyError) return apiKeyError;
 
-  const { symbol, side, type, quantity, price } = args;
+  const { symbol, side, type, quantity, price } = args as PlaceOrderArgs;
 
   if (type === "limit" && !price) {
     return {
@@ -59,40 +68,46 @@ export async function handlePlaceOrder(args: any) {
     };
   }
 
-  const orderData: any = {
+  const orderData: Record<string, unknown> = {
+    client_order_id: crypto.randomUUID(),
     symbol,
     side,
-    type,
-    quantity,
   };
 
-  if (price) {
-    orderData.price = price;
+  if (type === "limit") {
+    orderData.limit = {
+      base_size: quantity,
+      price: price,
+    };
+  } else {
+    orderData.market = {
+      base_size: quantity,
+    };
   }
 
   try {
-    const response = await axios.post(`${REVOLUTX_API_URL}/orders`, orderData, {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "X-API-KEY": getApiKey(),
+    const bodyString = JSON.stringify(orderData);
+    const response = await axios.post(
+      `${REVOLUTX_API_URL}/orders`,
+      bodyString,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...getAuthHeaders("POST", "/api/1.0/orders", bodyString),
+        },
       },
-      validateStatus: (status) => true,
-    });
+    );
 
-    if (response.status === 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(response.data, null, 2),
-          },
-        ],
-      };
-    }
-
-    return handleAxiosError({ response }, "placing order");
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, "placing order");
   }
 }

@@ -1,6 +1,6 @@
 import { Resource } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
-import { REVOLUTX_API_URL, getApiKey } from "../utils.js";
+import { REVOLUTX_API_URL, getAuthHeaders, checkApiKey } from "../utils.js";
 
 export const resources: Resource[] = [
   {
@@ -14,18 +14,21 @@ export const resources: Resource[] = [
 
 export async function handleReadResource(uri: string) {
   if (uri === "revolutx://pairs") {
-    if (!getApiKey()) {
-      throw new Error("REVOLUTX_API_KEY is required to read this resource.");
+    const apiError = checkApiKey();
+    if (apiError) {
+      throw new Error(apiError.content[0].text);
     }
+
     try {
+      const path = "/api/1.0/configuration/pairs";
       const response = await axios.get(
         `${REVOLUTX_API_URL}/configuration/pairs`,
         {
           headers: {
             Accept: "application/json",
-            "X-API-KEY": getApiKey(),
+            ...getAuthHeaders("GET", path),
           },
-        }
+        },
       );
       return {
         contents: [
@@ -36,8 +39,9 @@ export async function handleReadResource(uri: string) {
           },
         ],
       };
-    } catch (error: any) {
-      throw new Error(`Failed to fetch pairs: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to fetch pairs: ${message}`);
     }
   }
   throw new Error(`Resource not found: ${uri}`);

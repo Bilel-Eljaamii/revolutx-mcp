@@ -2,7 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import {
   REVOLUTX_API_URL,
-  getApiKey,
+  getAuthHeaders,
   handleAxiosError,
   checkApiKey,
 } from "../../utils.js";
@@ -16,8 +16,7 @@ interface Balance {
 
 export const getBalancesTool: Tool = {
   name: "get_balances",
-  description:
-    "Get crypto exchange account balances for the requesting user. Requires REVOLUTX_API_KEY to be set.",
+  description: "Get crypto exchange account balances for the requesting user.",
   inputSchema: {
     type: "object",
     properties: {},
@@ -34,26 +33,20 @@ export async function handleGetBalances() {
       {
         headers: {
           Accept: "application/json",
-          "X-API-KEY": getApiKey(),
+          ...getAuthHeaders("GET", "/api/1.0/balances"),
         },
-        validateStatus: (status) => true, // Allow all status codes to be handled explicitly
-      }
+      },
     );
 
-    if (response.status === 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(response.data, null, 2),
-          },
-        ],
-      };
-    }
-
-    // Handle specific status codes explicitly
-    return handleAxiosError({ response }, "fetching balances");
-  } catch (error: any) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (error: unknown) {
     return handleAxiosError(error, "fetching balances");
   }
 }
