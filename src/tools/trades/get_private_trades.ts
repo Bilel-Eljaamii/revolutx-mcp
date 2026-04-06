@@ -55,7 +55,7 @@ export async function handleGetPrivateTrades(args: unknown) {
   if (apiKeyError) return apiKeyError;
 
   const { symbol, start_date, end_date, cursor, limit } =
-    (args as GetPrivateTradesArgs) || {};
+    (args as GetPrivateTradesArgs | undefined) ?? {};
 
   const params: Record<string, string> = {};
   if (symbol) params.symbol = symbol;

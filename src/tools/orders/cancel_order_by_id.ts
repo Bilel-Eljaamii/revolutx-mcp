@@ -35,7 +35,7 @@ export async function handleCancelOrder(args: unknown) {
   try {
     // Note: RevolutX API typically uses DELETE /orders/{id}
     const path = `/api/1.0/orders/${order_id}`;
-    const response = await axios.delete(
+    const _response = await axios.delete(
       `${REVOLUTX_API_URL}/orders/${order_id}`,
       {
         headers: {

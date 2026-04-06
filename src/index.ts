@@ -140,7 +140,7 @@ server.setRequestHandler(ListPromptsRequestSchema, () => {
   };
 });
 
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+server.setRequestHandler(GetPromptRequestSchema, (request) => {
   return handleGetPrompt(request.params.name, request.params.arguments);
 });
 

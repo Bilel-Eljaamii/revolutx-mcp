@@ -66,7 +66,7 @@ export async function handleGetActiveOrders(args: unknown) {
   if (apiKeyError) return apiKeyError;
 
   const { cursor, limit, symbols, states, types, side } =
-    (args as GetActiveOrdersArgs) || {};
+    (args as GetActiveOrdersArgs | undefined) ?? {};
 
   const params: Record<string, string | number> = {};
   if (cursor) params.cursor = cursor;

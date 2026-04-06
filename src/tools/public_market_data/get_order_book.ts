@@ -49,7 +49,8 @@ interface GetOrderBookArgs {
 }
 
 export async function handleGetOrderBook(args: unknown) {
-  const { symbol } = (args as GetOrderBookArgs) || {};
+  const { symbol } = (args as GetOrderBookArgs | undefined) ?? {};
+
   if (!symbol) {
     throw new Error("Symbol is required");
   }

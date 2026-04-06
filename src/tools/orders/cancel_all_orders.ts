@@ -22,7 +22,7 @@ export async function handleCancelAllOrders() {
   if (apiKeyError) return apiKeyError;
 
   try {
-    const response = await axios.delete(`${REVOLUTX_API_URL}/orders`, {
+    const _response = await axios.delete(`${REVOLUTX_API_URL}/orders`, {
       headers: {
         Accept: "application/json",
         ...getAuthHeaders("DELETE", "/api/1.0/orders"),

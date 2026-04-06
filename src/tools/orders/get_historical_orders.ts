@@ -71,7 +71,7 @@ export async function handleGetHistoricalOrders(args: unknown) {
   if (apiKeyError) return apiKeyError;
 
   const { symbols, states, types, start_date, end_date, cursor, limit } =
-    (args as GetHistoricalOrdersArgs) || {};
+    (args as GetHistoricalOrdersArgs | undefined) ?? {};
 
   const params: Record<string, string | number> = {};
   if (cursor) params.cursor = cursor;

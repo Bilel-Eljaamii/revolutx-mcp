@@ -31,7 +31,7 @@ export async function handleGetTickers(args: unknown) {
   const apiKeyError = checkApiKey();
   if (apiKeyError) return apiKeyError;
 
-  const { symbols } = (args as GetTickersArgs) || {};
+  const { symbols } = (args as GetTickersArgs | undefined) ?? {};
 
   const params: Record<string, string> = {};
   if (symbols) params.symbols = symbols;
