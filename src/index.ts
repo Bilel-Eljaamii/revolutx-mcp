@@ -1,13 +1,5 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-  ListResourcesRequestSchema,
-  ReadResourceRequestSchema,
-  ListPromptsRequestSchema,
-  GetPromptRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
 
 // Import tools
@@ -86,104 +78,69 @@ import { prompts, handleGetPrompt } from "./prompts/index.js";
 
 dotenv.config();
 
-const server = new Server(
+const server = new McpServer({
+  name: "revolutx-mcp",
+  version: "0.1.0",
+});
+
+// Register all tools
+const toolDefinitions = [
+  { tool: getBalancesTool, handler: handleGetBalances },
+  { tool: getCurrenciesTool, handler: handleGetCurrencies },
+  { tool: getPairsTool, handler: handleGetPairs },
   {
-    name: "revolutx-mcp",
-    version: "0.1.0",
+    tool: getActiveOrdersTool,
+    handler: (args) => handleGetActiveOrders(args),
   },
   {
-    capabilities: {
-      tools: {},
-      resources: {},
-      prompts: {},
-    },
+    tool: getHistoricalOrdersTool,
+    handler: (args) => handleGetHistoricalOrders(args),
   },
-);
+  {
+    tool: getOrderFillsTool,
+    handler: (args) => handleGetOrderFills(args),
+  },
+  { tool: getLastTradesTool, handler: handleGetLastTrades },
+  { tool: getOrderBookTool, handler: (args) => handleGetOrderBook(args) },
+  { tool: placeOrderTool, handler: (args) => handlePlaceOrder(args) },
+  { tool: cancelOrderTool, handler: (args) => handleCancelOrder(args) },
+  { tool: cancelAllOrdersTool, handler: handleCancelAllOrders },
+  { tool: getOrderTool, handler: (args) => handleGetOrder(args) },
+  { tool: getAllTradesTool, handler: (args) => handleGetAllTrades(args) },
+  {
+    tool: getPrivateTradesTool,
+    handler: (args) => handleGetPrivateTrades(args),
+  },
+  {
+    tool: getOrderBookSnapshotTool,
+    handler: (args) => handleGetOrderBookSnapshot(args),
+  },
+  { tool: getCandlesTool, handler: (args) => handleGetCandles(args) },
+  { tool: getTickersTool, handler: (args) => handleGetTickers(args) },
+];
 
-server.setRequestHandler(ListToolsRequestSchema, () => {
-  return {
-    tools: [
-      getBalancesTool,
-      getCurrenciesTool,
-      getPairsTool,
-      getActiveOrdersTool,
-      getHistoricalOrdersTool,
-      getOrderFillsTool,
-      getLastTradesTool,
-      getOrderBookTool,
-      placeOrderTool,
-      cancelOrderTool,
-      cancelAllOrdersTool,
-      getOrderTool,
-      getAllTradesTool,
-      getPrivateTradesTool,
-      getOrderBookSnapshotTool,
-      getCandlesTool,
-      getTickersTool,
-    ],
-  };
-});
+for (const { tool, handler } of toolDefinitions) {
+  server.registerTool(
+    tool.name,
+    tool.description ?? "",
+    tool.inputSchema.properties ?? {},
+    handler,
+  );
+}
 
-server.setRequestHandler(ListResourcesRequestSchema, () => {
-  return {
-    resources: resources,
-  };
-});
+// Register resources
+for (const resource of resources) {
+  server.registerResource(resource.name, resource.uri, async (uri) =>
+    handleReadResource(String(uri)),
+  );
+}
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  return handleReadResource(request.params.uri);
-});
-
-server.setRequestHandler(ListPromptsRequestSchema, () => {
-  return {
-    prompts: prompts,
-  };
-});
-
-server.setRequestHandler(GetPromptRequestSchema, (request) => {
-  return handleGetPrompt(request.params.name, request.params.arguments);
-});
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  switch (request.params.name) {
-    case "get_balances":
-      return handleGetBalances();
-    case "get_currencies":
-      return handleGetCurrencies();
-    case "get_pairs":
-      return handleGetPairs();
-    case "get_active_orders":
-      return handleGetActiveOrders(request.params.arguments);
-    case "get_historical_orders":
-      return handleGetHistoricalOrders(request.params.arguments);
-    case "get_last_trades":
-      return handleGetLastTrades();
-    case "get_order_book":
-      return handleGetOrderBook(request.params.arguments);
-    case "place_order":
-      return handlePlaceOrder(request.params.arguments);
-    case "cancel_order":
-      return handleCancelOrder(request.params.arguments);
-    case "cancel_all_orders":
-      return handleCancelAllOrders();
-    case "get_order":
-      return handleGetOrder(request.params.arguments);
-    case "get_order_fills":
-      return handleGetOrderFills(request.params.arguments);
-    case "get_all_trades":
-      return handleGetAllTrades(request.params.arguments);
-    case "get_private_trades":
-      return handleGetPrivateTrades(request.params.arguments);
-    case "get_order_book_snapshot":
-      return handleGetOrderBookSnapshot(request.params.arguments);
-    case "get_candles":
-      return handleGetCandles(request.params.arguments);
-    case "get_tickers":
-      return handleGetTickers(request.params.arguments);
-    default:
-      throw new Error(`Tool not found: ${request.params.name}`);
-  }
-});
+// Register prompts
+for (const prompt of prompts) {
+  server.registerPrompt(prompt.name, prompt.arguments ?? [], (args) =>
+    handleGetPrompt(prompt.name, args),
+  );
+}
 
 async function runServer() {
   const transport = new StdioServerTransport();
