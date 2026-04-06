@@ -1,17 +1,22 @@
 import axios from "axios";
-import { handleAxiosError, checkApiKey } from "../../src/utils";
+import { handleAxiosError, checkApiKey, getApiKey } from "../../src/utils";
 
-// Mock environment variable
-const originalEnv = process.env;
+// Mock getApiKey from utils.ts
+jest.mock("../../src/utils", () => ({
+  __esModule: true,
+  ...jest.requireActual("../../src/utils"),
+  getApiKey: jest.fn(),
+}));
 
 describe("Utils", () => {
   beforeEach(() => {
-    jest.resetModules();
-    process.env = { ...originalEnv };
+    // Ensure getApiKey is reset before each test
+    (getApiKey as jest.Mock).mockClear();
+    (getApiKey as jest.Mock).mockReturnValue("test_api_key");
   });
 
   afterEach(() => {
-    process.env = originalEnv;
+    jest.clearAllMocks();
   });
 
   describe("handleAxiosError", () => {
@@ -176,59 +181,25 @@ describe("Utils", () => {
 
   describe("checkApiKey", () => {
     test("returns error when API key is missing", () => {
-      // Test the logic directly with undefined API key
-      const testCheckApiKey = (apiKey: string | undefined) => {
-        if (!apiKey) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error: REVOLUTX_API_KEY environment variable is required for this tool.",
-              },
-            ],
-            isError: true,
-          };
-        }
-        return null;
-      };
-
-      const result = testCheckApiKey(undefined);
-
+      (getApiKey as jest.Mock).mockReturnValueOnce(undefined);
+      const result = checkApiKey();
       expect(result).not.toBeNull();
       if (result) {
         expect(result.isError).toBe(true);
-        expect(result.content[0].type).toBe("text");
         expect(result.content[0].text).toContain("REVOLUTX_API_KEY");
         expect(result.content[0].text).toContain("required");
       }
     });
 
     test("returns null when API key is present", () => {
-      // Test with actual implementation (API key from .env)
+      (getApiKey as jest.Mock).mockReturnValueOnce("some_api_key");
       const result = checkApiKey();
-
-      // Since .env is loaded, API_KEY should exist and return null
       expect(result).toBeNull();
     });
 
     test("checkApiKey logic with empty string", () => {
-      // Test the logic directly
-      const testCheckApiKey = (apiKey: string | undefined) => {
-        if (!apiKey) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error: REVOLUTX_API_KEY environment variable is required for this tool.",
-              },
-            ],
-            isError: true,
-          };
-        }
-        return null;
-      };
-
-      const result = testCheckApiKey("");
+      (getApiKey as jest.Mock).mockReturnValueOnce("");
+      const result = checkApiKey();
       expect(result).not.toBeNull();
       if (result) {
         expect(result.isError).toBe(true);

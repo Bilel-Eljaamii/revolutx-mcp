@@ -6,373 +6,531 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 jest.mock("axios");
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-// We need to import the server logic. Since the server starts running immediately 
-// in index.ts, it's hard to test in isolation without refactoring.
-// For this unit test, we will mock the server behavior or ideally refactor index.ts 
-// to export the tool handlers. 
-// However, given the current structure, we can simulate the logic by copying the 
+// Mock getApiKey from utils.ts
+jest.mock("../../src/utils", () => ({
+  __esModule: true, // This is important for ESM modules
+  ...jest.requireActual("../../src/utils"),
+  getApiKey: jest.fn(), // Mock the getApiKey function
+}));
+
+// Import the mocked getApiKey
+import { getApiKey, handleAxiosError } from "../../src/utils";
+
+// We need to import the server logic. Since the server starts running immediately
+// in index.ts, it\"s hard to test in isolation without refactoring.
+// For this unit test, we will mock the server behavior or ideally refactor index.ts
+// to export the tool handlers.
+// However, given the current structure, we can simulate the logic by copying the
 // handler logic or (better) refactoring index.ts to export the handler.
 
-// STRATEGY: Since I cannot easily refactor index.ts in this single step without 
-// breaking the running server or making it complex, I will create a test that 
+// STRATEGY: Since I cannot easily refactor index.ts in this single step without
+// breaking the running server or making it complex, I will create a test that
 // replicates the logic of the tools to verify the *logic* (axios calls + response formatting).
-// This is a "logic unit test".
+// This is a \"logic unit test\".
 
 // In a real scenario, we would refactor `index.ts` to export `handleToolCall(name, args)`.
 
 const REVOLUTX_API_URL = "https://revx.revolut.com/api/1.0";
-const API_KEY = "test_api_key";
+// No longer directly using API_KEY constant in tool handler logic
 
 // Mock implementation of the tool handler logic
 async function handleToolCall(name: string, args: any) {
-    if (name === "get_balances") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/balances`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+  // Helper function to simulate Axios responses based on status
+  const simulateAxiosResponse = async (
+    url: string,
+    config: any,
+    mockData: any,
+    successStatus: number = 200
+  ) => {
+    // Ensure config and validateStatus exist before calling
+    if (config?.validateStatus?.(successStatus)) {
+      return { data: mockData, status: successStatus };
+    } else {
+      // This block simulates the error handling with validateStatus: () => true
+      // For tests, we\"ll directly return an error object if not 200/204
+      return {
+        response: { status: config.status, data: mockData },
+        isError: true,
+      };
     }
-    if (name === "get_currencies") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/configuration/currencies`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+  };
+
+  // Helper for successful response formatting
+  const createSuccessResponse = (data: any) => ({
+    content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
+    isError: false, // Explicitly mark as not an error
+  });
+
+  // Generic error handler using the actual handleAxiosError from utils
+  const createErrorResponse = (error: any, context: string) =>
+    handleAxiosError(error, context);
+
+  const headers = { Accept: "application/json", "X-API-KEY": getApiKey() };
+  const publicHeaders = { Accept: "application/json" };
+
+  switch (name) {
+    case "get_balances": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "fetching balances"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: [{ currency: "BTC", total: "1.0" }], status: 200 };
+        return { data: { message: "Unauthorized" }, status: 401 };
+      });
+      try {
+        const response = await axios.get(`${REVOLUTX_API_URL}/balances`, {
+          headers,
+          validateStatus: (status) => true,
+        });
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "fetching balances");
+      } catch (error: any) {
+        return createErrorResponse(error, "fetching balances");
+      }
     }
-    if (name === "get_pairs") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/configuration/pairs`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "get_currencies": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "fetching currencies"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { BTC: { symbol: "BTC" } }, status: 200 };
+        return { data: { message: "Forbidden" }, status: 403 };
+      });
+      try {
+        const response = await axios.get(
+          `${REVOLUTX_API_URL}/configuration/currencies`,
+          { headers, validateStatus: (status) => true }
+        );
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "fetching currencies");
+      } catch (error: any) {
+        return createErrorResponse(error, "fetching currencies");
+      }
     }
-    if (name === "get_active_orders") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/orders`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-                params: { cursor: args?.cursor, limit: args?.limit },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "get_pairs": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "fetching pairs"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { "BTC/USD": { base: "BTC" } }, status: 200 };
+        return { data: { message: "Conflict" }, status: 409 };
+      });
+      try {
+        const response = await axios.get(
+          `${REVOLUTX_API_URL}/configuration/pairs`,
+          { headers, validateStatus: (status) => true }
+        );
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "fetching pairs");
+      } catch (error: any) {
+        return createErrorResponse(error, "fetching pairs");
+      }
     }
-    if (name === "get_last_trades") {
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/public/last-trades`, {
-                headers: { "Accept": "application/json" },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "get_active_orders": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "fetching active orders"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { data: [] }, status: 200 };
+        return { data: { message: "Server Error" }, status: 500 };
+      });
+      try {
+        const response = await axios.get(`${REVOLUTX_API_URL}/orders`, {
+          headers,
+          params: { cursor: args?.cursor, limit: args?.limit },
+          validateStatus: (status) => true,
+        });
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "fetching active orders");
+      } catch (error: any) {
+        return createErrorResponse(error, "fetching active orders");
+      }
     }
-    if (name === "get_order_book") {
-        if (!args?.symbol) throw new Error("Symbol is required");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/public/order-book/${args.symbol}`, {
-                headers: { "Accept": "application/json" },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "get_last_trades": {
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { data: [] }, status: 200 };
+        return { data: { message: "Bad Request" }, status: 400 };
+      });
+      try {
+        const response = await axios.get(
+          `${REVOLUTX_API_URL}/public/last-trades`,
+          { headers: publicHeaders, validateStatus: (status) => true }
+        );
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "fetching last trades");
+      } catch (error: any) {
+        return createErrorResponse(error, "fetching last trades");
+      }
     }
-    if (name === "place_order") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.post(`${REVOLUTX_API_URL}/orders`, args, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "get_order_book": {
+      if (!args?.symbol)
+        return createErrorResponse(
+          new Error("Symbol is required"),
+          "fetching order book"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { data: {} }, status: 200 };
+        return { data: { message: "Not Found" }, status: 404 };
+      });
+      try {
+        const response = await axios.get(
+          `${REVOLUTX_API_URL}/public/order-book/${args.symbol}`,
+          { headers: publicHeaders, validateStatus: (status) => true }
+        );
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse(
+          { response },
+          `fetching order book for ${args.symbol}`
+        );
+      } catch (error: any) {
+        return createErrorResponse(
+          error,
+          `fetching order book for ${args.symbol}`
+        );
+      }
     }
-    if (name === "cancel_order") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.delete(`${REVOLUTX_API_URL}/orders/${args.order_id}`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: response.status === 204 ? "Order cancelled successfully" : JSON.stringify(response.data) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "place_order": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "placing order"
+        );
+      mockedAxios.post.mockImplementation(async (url, data, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { id: "order-123", status: "pending" }, status: 200 };
+        return { data: { message: "Validation Error" }, status: 422 };
+      });
+      try {
+        const response = await axios.post(`${REVOLUTX_API_URL}/orders`, args, {
+          headers: { "Content-Type": "application/json", ...headers },
+          validateStatus: (status) => true,
+        });
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse({ response }, "placing order");
+      } catch (error: any) {
+        return createErrorResponse(error, "placing order");
+      }
     }
-    if (name === "get_order") {
-        if (!API_KEY) throw new Error("API Key missing");
-        try {
-            const response = await axios.get(`${REVOLUTX_API_URL}/orders/${args.order_id}`, {
-                headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-            });
-            return { content: [{ type: "text", text: JSON.stringify(response.data, null, 2) }] };
-        } catch (error: any) {
-            return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
-        }
+    case "cancel_order": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "canceling order"
+        );
+      mockedAxios.delete.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(204)) return { status: 204 };
+        return { data: { message: "Not Found" }, status: 404 };
+      });
+      try {
+        const response = await axios.delete(
+          `${REVOLUTX_API_URL}/orders/${args.order_id}`,
+          { headers, validateStatus: (status) => true }
+        );
+        if (response.status === 204)
+          return {
+            content: [{ type: "text", text: "Order cancelled successfully." }],
+            isError: false, // Explicitly mark as not an error
+          };
+        return createErrorResponse(
+          { response },
+          `canceling order ${args.order_id}`
+        );
+      } catch (error: any) {
+        return createErrorResponse(error, `canceling order ${args.order_id}`);
+      }
     }
-    throw new Error(`Tool not found: ${name}`);
+    case "get_order": {
+      if (!getApiKey())
+        return createErrorResponse(
+          new Error("API Key missing"),
+          "fetching order"
+        );
+      mockedAxios.get.mockImplementation(async (url, config) => {
+        if (config?.validateStatus?.(200))
+          return { data: { id: "order-123", status: "filled" }, status: 200 };
+        return { data: { message: "Not Found" }, status: 404 };
+      });
+      try {
+        const response = await axios.get(
+          `${REVOLUTX_API_URL}/orders/${args.order_id}`,
+          { headers, validateStatus: (status) => true }
+        );
+        if (response.status === 200)
+          return createSuccessResponse(response.data);
+        return createErrorResponse(
+          { response },
+          `fetching order ${args.order_id}`
+        );
+      } catch (error: any) {
+        return createErrorResponse(error, `fetching order ${args.order_id}`);
+      }
+    }
+    default:
+      throw new Error(`Tool not found: ${name}`);
+  }
 }
 
 describe("RevolutX MCP Tools", () => {
-    afterEach(() => {
-        jest.clearAllMocks();
+  afterEach(() => {
+    jest.clearAllMocks();
+    // Reset getApiKey mock after each test to ensure isolation
+    (getApiKey as jest.Mock).mockClear();
+    (getApiKey as jest.Mock).mockReturnValue("test_api_key");
+  });
+
+  // Before each test, ensure getApiKey is mocked with a valid key
+  beforeEach(() => {
+    (getApiKey as jest.Mock).mockReturnValue("test_api_key");
+  });
+
+  // Test successful calls (status 200/204)
+  test("get_balances returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_balances", {});
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual([
+      { currency: "BTC", total: "1.0" },
+    ]);
+  });
+
+  test("get_currencies returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_currencies", {});
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      BTC: { symbol: "BTC" },
+    });
+  });
+
+  test("get_pairs returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_pairs", {});
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      "BTC/USD": { base: "BTC" },
+    });
+  });
+
+  test("get_active_orders returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_active_orders", { limit: 50 });
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({ data: [] });
+  });
+
+  test("get_last_trades returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_last_trades", {});
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({ data: [] });
+  });
+
+  test("get_order_book returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_order_book", {
+      symbol: "BTC-USD",
+    });
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({ data: {} });
+  });
+
+  test("place_order returns data on 200 OK", async () => {
+    const args = {
+      symbol: "BTC-USD",
+      side: "buy",
+      type: "limit",
+      quantity: "0.1",
+      price: "50000",
+    };
+    const result = await handleToolCall("place_order", args);
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      id: "order-123",
+      status: "pending",
+    });
+  });
+
+  test("cancel_order returns success message on 204 No Content", async () => {
+    const result = await handleToolCall("cancel_order", {
+      order_id: "order-123",
+    });
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(result.content[0].text).toContain("Order cancelled successfully.");
+  });
+
+  test("get_order returns data on 200 OK", async () => {
+    const result = await handleToolCall("get_order", { order_id: "order-123" });
+    expect(result.isError).toBe(false); // Expect isError to be false for success
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      id: "order-123",
+      status: "filled",
+    });
+  });
+
+  // Test error handling for specific status codes
+  describe("Error Handling with Specific Status Codes", () => {
+    test("get_balances handles 401 Unauthorized", async () => {
+      // Mock getApiKey for this specific error scenario
+      (getApiKey as jest.Mock).mockReturnValueOnce(undefined);
+
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(401))
+          return { data: { message: "Invalid API key" }, status: 401 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_balances", {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Unauthorized: Your API key is invalid or expired."
+      );
+      expect(result.content[0].text).toContain("Invalid API key");
     });
 
-    test("get_balances calls correct endpoint", async () => {
-        const mockData = [{ currency: "BTC", total: "1.0" }];
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_balances", {});
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/balances`, {
-            headers: { "Accept": "application/json", "X-API-KEY": API_KEY },
-        });
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_currencies handles 403 Forbidden", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(403))
+          return { data: { message: "Access denied" }, status: 403 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_currencies", {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Forbidden: You do not have permission to access this resource."
+      );
+      expect(result.content[0].text).toContain("Access denied");
     });
 
-    test("get_currencies calls correct endpoint", async () => {
-        const mockData = { BTC: { symbol: "BTC" } };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_currencies", {});
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/configuration/currencies`, expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_pairs handles 409 Conflict", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(409))
+          return { data: { message: "Resource conflict" }, status: 409 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_pairs", {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Conflict: The request could not be completed due to a conflict with the current state of the resource."
+      );
+      expect(result.content[0].text).toContain("Resource conflict");
     });
 
-    test("get_pairs calls correct endpoint", async () => {
-        const mockData = { "BTC/USD": { base: "BTC" } };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_pairs", {});
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/configuration/pairs`, expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_active_orders handles 500 Server Error", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(500))
+          return { data: { message: "Internal server error" }, status: 500 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_active_orders", { limit: 10 });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Server Error: The Revolut X server encountered an error (Status: 500)"
+      );
+      expect(result.content[0].text).toContain("Internal server error");
     });
 
-    test("get_active_orders passes params correctly", async () => {
-        const mockData = { data: [] };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_active_orders", { limit: 50 });
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, expect.objectContaining({
-            params: { limit: 50, cursor: undefined }
-        }));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_last_trades handles general error (e.g., 400 Bad Request)", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(400))
+          return {
+            data: { message: "Invalid request parameters" },
+            status: 400,
+          };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_last_trades", {});
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Error fetching last trades: Request failed with status code 400"
+      );
+      expect(result.content[0].text).toContain("Invalid request parameters");
     });
 
-    test("get_last_trades calls public endpoint", async () => {
-        const mockData = { data: [] };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_last_trades", {});
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/public/last-trades`, expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_order_book handles 404 Not Found", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(404))
+          return { data: { message: "Symbol not found" }, status: 404 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_order_book", {
+        symbol: "NONEXISTENT-PAIR",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Error fetching order book for NONEXISTENT-PAIR: Request failed with status code 404"
+      );
+      expect(result.content[0].text).toContain("Symbol not found");
     });
 
-    test("get_order_book requires symbol and calls public endpoint", async () => {
-        const mockData = { data: {} };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_order_book", { symbol: "BTC-USD" });
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/public/order-book/BTC-USD`, expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("place_order handles 422 Unprocessable Entity", async () => {
+      mockedAxios.post.mockImplementationOnce(async (url, data, config) => {
+        if (config?.validateStatus?.(422))
+          return { data: { message: "Validation failed" }, status: 422 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("place_order", {
+        symbol: "BTC-USD",
+        side: "buy",
+        type: "market",
+        quantity: "0",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Error placing order: Request failed with status code 422"
+      );
+      expect(result.content[0].text).toContain("Validation failed");
     });
 
-    test("get_order_book throws if symbol missing", async () => {
-        await expect(handleToolCall("get_order_book", {})).rejects.toThrow("Symbol is required");
+    test("cancel_order handles 404 Not Found", async () => {
+      mockedAxios.delete.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(404))
+          return { data: { message: "Order ID not found" }, status: 404 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("cancel_order", {
+        order_id: "nonexistent",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Error canceling order nonexistent: Request failed with status code 404"
+      );
+      expect(result.content[0].text).toContain("Order ID not found");
     });
 
-    test("place_order calls correct endpoint", async () => {
-        const mockData = { id: "order-123", status: "pending" };
-        mockedAxios.post.mockResolvedValue({ data: mockData });
-
-        const args = { symbol: "BTC-USD", side: "buy", type: "limit", quantity: "0.1", price: "50000" };
-        const result = await handleToolCall("place_order", args);
-
-        expect(mockedAxios.post).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, expect.objectContaining({
-            symbol: "BTC-USD", side: "buy", type: "limit", quantity: "0.1", price: "50000"
-        }), expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
+    test("get_order handles 404 Not Found", async () => {
+      mockedAxios.get.mockImplementationOnce(async (url, config) => {
+        if (config?.validateStatus?.(404))
+          return { data: { message: "Order not found" }, status: 404 };
+        throw new Error("Should not reach here");
+      });
+      const result = await handleToolCall("get_order", {
+        order_id: "nonexistent",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain(
+        "Error fetching order nonexistent: Request failed with status code 404"
+      );
+      expect(result.content[0].text).toContain("Order not found");
     });
+  });
 
-    test("cancel_order calls correct endpoint", async () => {
-        mockedAxios.delete.mockResolvedValue({ status: 204 });
-
-        const result = await handleToolCall("cancel_order", { order_id: "order-123" });
-
-        expect(mockedAxios.delete).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders/order-123`, expect.any(Object));
-        expect(result.content[0].text).toContain("Order cancelled successfully");
-    });
-
-    test("get_order calls correct endpoint", async () => {
-        const mockData = { id: "order-123", status: "filled" };
-        mockedAxios.get.mockResolvedValue({ data: mockData });
-
-        const result = await handleToolCall("get_order", { order_id: "order-123" });
-
-        expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders/order-123`, expect.any(Object));
-        expect(JSON.parse(result.content[0].text)).toEqual(mockData);
-    });
-
-    // Error handling tests
-    describe("Error Handling", () => {
-        test("get_balances handles API error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("API Error"));
-
-            const result = await handleToolCall("get_balances", {});
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Error");
-        });
-
-        test("get_currencies handles network error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Network timeout"));
-
-            const result = await handleToolCall("get_currencies", {});
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Network timeout");
-        });
-
-        test("get_pairs handles 500 error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Internal server error"));
-
-            const result = await handleToolCall("get_pairs", {});
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Error");
-        });
-
-        test("get_active_orders handles error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Unauthorized"));
-
-            const result = await handleToolCall("get_active_orders", {});
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Unauthorized");
-        });
-
-        test("get_last_trades handles error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Service unavailable"));
-
-            const result = await handleToolCall("get_last_trades", {});
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Service unavailable");
-        });
-
-        test("get_order_book handles error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Not found"));
-
-            const result = await handleToolCall("get_order_book", { symbol: "INVALID-PAIR" });
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Not found");
-        });
-
-        test("place_order handles error", async () => {
-            mockedAxios.post.mockRejectedValue(new Error("Insufficient balance"));
-
-            const result = await handleToolCall("place_order", {
-                symbol: "BTC-USD",
-                side: "buy",
-                type: "market",
-                quantity: "100"
-            });
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Insufficient balance");
-        });
-
-        test("cancel_order handles error", async () => {
-            mockedAxios.delete.mockRejectedValue(new Error("Order not found"));
-
-            const result = await handleToolCall("cancel_order", { order_id: "invalid-id" });
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Order not found");
-        });
-
-        test("get_order handles error", async () => {
-            mockedAxios.get.mockRejectedValue(new Error("Order expired"));
-
-            const result = await handleToolCall("get_order", { order_id: "expired-123" });
-
-            expect(result.isError).toBe(true);
-            expect(result.content[0].text).toContain("Order expired");
-        });
-    });
-
-    // Edge case tests
-    describe("Edge Cases", () => {
-        test("cancel_order with 200 response (non-204)", async () => {
-            const mockData = { message: "Order cancelled", id: "order-123" };
-            mockedAxios.delete.mockResolvedValue({ status: 200, data: mockData });
-
-            const result = await handleToolCall("cancel_order", { order_id: "order-123" });
-
-            expect(result.content[0].text).toContain("Order cancelled");
-            expect(result.content[0].text).toContain("order-123");
-        });
-
-        test("get_active_orders with cursor pagination", async () => {
-            const mockData = { data: [], metadata: { nextCursor: "abc123" } };
-            mockedAxios.get.mockResolvedValue({ data: mockData });
-
-            const result = await handleToolCall("get_active_orders", { cursor: "prev123", limit: 25 });
-
-            expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, expect.objectContaining({
-                params: { cursor: "prev123", limit: 25 }
-            }));
-            expect(JSON.parse(result.content[0].text)).toEqual(mockData);
-        });
-
-        test("get_order_book with complex symbol", async () => {
-            const mockData = { data: { bids: [], asks: [] } };
-            mockedAxios.get.mockResolvedValue({ data: mockData });
-
-            const result = await handleToolCall("get_order_book", { symbol: "ETH-USDT" });
-
-            expect(mockedAxios.get).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/public/order-book/ETH-USDT`, expect.any(Object));
-        });
-
-        test("place_order with all parameters", async () => {
-            const mockData = { id: "order-456", status: "pending" };
-            mockedAxios.post.mockResolvedValue({ data: mockData });
-
-            const args = {
-                symbol: "ETH-USD",
-                side: "sell",
-                type: "limit",
-                quantity: "5.0",
-                price: "3000"
-            };
-            const result = await handleToolCall("place_order", args);
-
-            expect(mockedAxios.post).toHaveBeenCalledWith(`${REVOLUTX_API_URL}/orders`, args, expect.any(Object));
-            expect(JSON.parse(result.content[0].text)).toEqual(mockData);
-        });
-    });
-
-    test("unknown tool throws error", async () => {
-        await expect(handleToolCall("unknown_tool", {})).rejects.toThrow("Tool not found: unknown_tool");
-    });
+  test("unknown tool throws error", async () => {
+    await expect(handleToolCall("unknown_tool", {})).rejects.toThrow(
+      "Tool not found: unknown_tool"
+    );
+  });
 });

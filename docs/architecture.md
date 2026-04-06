@@ -17,7 +17,7 @@ The RevolutX MCP Server is built using the [Model Context Protocol (MCP)](https:
 
 ## Project Structure
 
-```
+```text
 revolutx-mcp/
 ├── src/
 │   ├── index.ts              # Main server entry point
@@ -60,12 +60,14 @@ revolutx-mcp/
 ### 1. MCP Server (`src/index.ts`)
 
 The main server file that:
+
 - Initializes the MCP server with stdio transport
 - Registers request handlers for all MCP operations
 - Routes tool calls to appropriate handlers
 - Manages resources and prompts
 
 **Key Code**:
+
 ```typescript
 const server = new Server(
     {
@@ -87,6 +89,7 @@ const server = new Server(
 Each tool is organized by category and follows a consistent pattern:
 
 **Tool Definition**:
+
 ```typescript
 export const toolName: Tool = {
     name: "tool_name",
@@ -100,6 +103,7 @@ export const toolName: Tool = {
 ```
 
 **Handler Function**:
+
 ```typescript
 export async function handleToolName(args: any) {
     // 1. Validate API key (if needed)
@@ -115,6 +119,7 @@ export async function handleToolName(args: any) {
 Resources provide static or semi-static data:
 
 **Resource Definition**:
+
 ```typescript
 export const resources: Resource[] = [
     {
@@ -127,6 +132,7 @@ export const resources: Resource[] = [
 ```
 
 **Handler Function**:
+
 ```typescript
 export async function handleReadResource(uri: string) {
     // 1. Match URI
@@ -141,6 +147,7 @@ export async function handleReadResource(uri: string) {
 Prompts define workflows that guide AI assistants:
 
 **Prompt Definition**:
+
 ```typescript
 export const prompts: Prompt[] = [
     {
@@ -158,6 +165,7 @@ export const prompts: Prompt[] = [
 ```
 
 **Handler Function**:
+
 ```typescript
 export async function handleGetPrompt(name: string, args: any) {
     // 1. Match prompt name
@@ -169,6 +177,7 @@ export async function handleGetPrompt(name: string, args: any) {
 ### 5. Utilities (`src/utils.ts`)
 
 Shared utilities include:
+
 - API configuration (`REVOLUTX_API_URL`, `API_KEY`)
 - Error handling (`handleAxiosError`)
 - Authentication checking (`checkApiKey`)
@@ -213,7 +222,7 @@ This ensures all private tools fail gracefully when the API key is missing.
 
 ### Tool Call Flow
 
-```
+```text
 1. MCP Client sends tool call request
    ↓
 2. Server receives request via stdio
@@ -231,7 +240,7 @@ This ensures all private tools fail gracefully when the API key is missing.
 
 ### Resource Read Flow
 
-```
+```text
 1. MCP Client requests resource
    ↓
 2. Server receives ReadResourceRequest
@@ -247,7 +256,7 @@ This ensures all private tools fail gracefully when the API key is missing.
 
 ### Prompt Flow
 
-```
+```text
 1. MCP Client requests prompt
    ↓
 2. Server receives GetPromptRequest
@@ -340,6 +349,7 @@ This allows the server to be easily integrated with MCP clients like Claude Desk
 ## Future Enhancements
 
 Potential improvements:
+
 - Add caching layer for resources
 - Implement rate limiting
 - Add more comprehensive logging

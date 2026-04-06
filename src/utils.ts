@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 export const REVOLUTX_API_URL = "https://revx.revolut.com/api/1.0";
-export const API_KEY = process.env.REVOLUTX_API_KEY;
+export const getApiKey = () => process.env.REVOLUTX_API_KEY;
 
 export function handleAxiosError(error: any, context: string) {
   let errorMessage = `Error ${context}: ${error.message}`;
@@ -44,7 +44,7 @@ export function handleAxiosError(error: any, context: string) {
 }
 
 export function checkApiKey() {
-  if (!API_KEY) {
+  if (!getApiKey()) {
     return {
       content: [
         {

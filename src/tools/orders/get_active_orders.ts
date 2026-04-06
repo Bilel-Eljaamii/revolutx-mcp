@@ -2,7 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import {
   REVOLUTX_API_URL,
-  API_KEY,
+  getApiKey,
   handleAxiosError,
   checkApiKey,
 } from "../../utils.js";
@@ -37,7 +37,7 @@ export async function handleGetActiveOrders(args: any) {
     const response = await axios.get(`${REVOLUTX_API_URL}/orders`, {
       headers: {
         Accept: "application/json",
-        "X-API-KEY": API_KEY,
+        "X-API-KEY": getApiKey(),
       },
       params: {
         cursor,

@@ -2,7 +2,7 @@ import { Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import {
   REVOLUTX_API_URL,
-  API_KEY,
+  getApiKey,
   handleAxiosError,
   checkApiKey,
 } from "../../utils.js";
@@ -27,7 +27,7 @@ export async function handleGetPairs() {
       {
         headers: {
           Accept: "application/json",
-          "X-API-KEY": API_KEY,
+          "X-API-KEY": getApiKey(),
         },
         validateStatus: (status) => true,
       }
